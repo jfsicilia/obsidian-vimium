@@ -1,8 +1,7 @@
 import { Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, VimiumSettings, VimiumSettingTab } from './settings';
-import tlds from './tlds';
 import { MarkerData } from './types';
-import { createMarker, findMarkerMatch, updateMarkerText } from './utils';
+import { createMarker, findMarkerMatch, updateMarkerText, generateHints } from './utils';
 
 export default class Vimium extends Plugin {
 	settings: VimiumSettings;
@@ -99,10 +98,11 @@ export default class Vimium extends Plugin {
 		});
 
 		// Create markers
-		for (let i = 0; i < Math.min(clickableElements.length, tlds.length); i++) {
-			const clickableEl = clickableElements[i] as HTMLElement;
-			const text = tlds[i];
-			const marker = createMarker(text, clickableEl, this.input);
+		const hintChars = this.settings.hintChars;
+		const hints = generateHints(clickableElements.length, hintChars);
+		for (const [index, hint] of hints.entries()) {
+			const clickableEl = clickableElements[index] as HTMLElement;
+			const marker = createMarker(hint, clickableEl, this.input);
 			if (marker) {
 				this.markers.push(marker);
 				containerInnerEl.appendChild(marker.el);
