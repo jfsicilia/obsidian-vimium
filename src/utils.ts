@@ -1,7 +1,7 @@
 import { MarkerData } from "./types";
 
-export function createMarkerText(text: string, markerEl: HTMLElement, input = "") {
-	Array.from(text).forEach((char, index) => {
+export function createMarkerText(hint: string, markerEl: HTMLElement, input = "") {
+	Array.from(hint).forEach((char, index) => {
 		const charEl = createSpan();
 		charEl.setText(char.toUpperCase());
 		if (input.length >= index && char === input[index]) {
@@ -12,47 +12,26 @@ export function createMarkerText(text: string, markerEl: HTMLElement, input = ""
 }
 
 export function updateMarkerText(marker: MarkerData, input = "") {
-	while (marker.el.firstChild) {
-		marker.el.removeChild(marker.el.firstChild);
-	}
-	createMarkerText(marker.text, marker.el, input);
+    marker.el.innerHTML = "";
+	createMarkerText(marker.hint, marker.el, input);
 }
 
-export function createMarkerEl(text: string, input: string, x: number, y: number): HTMLElement {
+export function createMarkerEl(hint: string, input: string, x: number, y: number): HTMLElement {
 	const markerEl = createSpan()
 	markerEl.addClass("vimium-marker");
 	markerEl.setCssProps({
 		"--top": `${y}px`, 
 		"--left": `${x}px`,
 	});
-	createMarkerText(text, markerEl, input);
+	createMarkerText(hint, markerEl, input);
 	return markerEl;
 }
 
-export function createMarker(text: string, parentEl: HTMLElement, input = ""): MarkerData | null {
-	const rect = parentEl.getBoundingClientRect();
+export function createMarker(posX: number, posY: number, hint: string, 
+    parentEl: HTMLElement, input = ""): MarkerData {
 
-	if (rect.width === 0 || rect.height === 0) {
-		return null;
-	}
-
-	const data: MarkerData = {
-		el: createMarkerEl(text, input, rect.left, rect.top),
-		parentEl,
-		text
-	};
-
-	return data;
-}
-
-export function findMarkerMatch(text: string, markers: MarkerData[]): MarkerData | null {
-	for (const marker of markers) {
-		if (text === marker.text) {
-			return marker;
-		}
-	}
-
-	return null;
+    const el = createMarkerEl(hint, input, posX, posY);
+	return { el, parentEl, hint: hint };
 }
 
 export function intToLetters(num: number) {

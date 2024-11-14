@@ -1,12 +1,12 @@
 import { Plugin } from 'obsidian';
 import { DEFAULT_SETTINGS, VimiumSettings, VimiumSettingTab } from './settings';
 import { MarkerData } from './types';
-import { createMarker, findMarkerMatch, updateMarkerText, generateHints } from './utils';
+import { createMarker, updateMarkerText, generateHints } from './utils';
 
 export default class Vimium extends Plugin {
 	settings: VimiumSettings;
 	showMarkers = false;
-	markers: MarkerData[] = [];
+    markers: Map<string, MarkerData> = new Map();
 	containerEl: HTMLElement;
 	input = "";
 
@@ -41,7 +41,7 @@ export default class Vimium extends Plugin {
 			} else if (event.key.length === 1 && event.key.match(/[a-zA-Z]/)) {
 				this.input += event.key.toLowerCase();
 
-				const result = findMarkerMatch(this.input, this.markers);
+                const result = this.markers.get(this.input);
 				if (result) {
 					// Interact with element
 					const clickableEl = result.parentEl;
@@ -85,8 +85,24 @@ export default class Vimium extends Plugin {
 	createMarkers() {
 		// Select clickable elements
 		const clickableElements = document.querySelectorAll(this.settings.clickableCssSelector);
+        // Get all the clickable elements box rectangles prior adding elements
+        // to the DOM, this way constant layout reflows are avoided.
+        let elemsAndBounds: [HTMLElement, DOMRect][] = []; 
+        clickableElements.forEach((el) => 
+            elemsAndBounds.push([el as HTMLElement, el.getBoundingClientRect()])
+        );
+        // Filter out clickable elements out of the viewport.
+        const boundaries = this.app.workspace.containerEl.getBoundingClientRect();
+        elemsAndBounds = elemsAndBounds.filter((elem) => {
+            const top = elem[1].top, left = elem[1].left;
+            const width = elem[1].width, height = elem[1].height;
+            return top >= 0 && top <= boundaries.height 
+                && left >= 0 && left <= boundaries.width
+                && width > 0 && height > 0;
+        });
 
-		// Create container
+
+		// Create markers' container
 		this.containerEl = createDiv();
 		this.containerEl.addClass("vimium-container");
 		this.app.workspace.containerEl.appendChild(this.containerEl);
@@ -97,37 +113,36 @@ export default class Vimium extends Plugin {
 			"--marker-size": `${this.settings.markerSize}px`,
 		});
 
-		// Create markers
+		// Create markers with hint strings.
 		const hintChars = this.settings.hintChars;
-		const hints = generateHints(clickableElements.length, hintChars);
+		const hints = generateHints(elemsAndBounds.length, hintChars);
 		for (const [index, hint] of hints.entries()) {
-			const clickableEl = clickableElements[index] as HTMLElement;
-			const marker = createMarker(hint, clickableEl, this.input);
-			if (marker) {
-				this.markers.push(marker);
-				containerInnerEl.appendChild(marker.el);
-			}
+			const clickableEl = elemsAndBounds[index][0];
+            const left = elemsAndBounds[index][1].left;
+            const top = elemsAndBounds[index][1].top;
+			const marker = createMarker(left, top, hint, clickableEl, this.input);
+            this.markers.set(hint, marker);
+            containerInnerEl.appendChild(marker.el);
 		}
 	}
 
 	updateMarkers() {
-		for (const marker of this.markers) {
-			const rect = marker.parentEl.getBoundingClientRect();
-			marker.el.setCssProps({
-				"--top": `${rect.top}px`,
-				"--left": `${rect.left}px`,
-				display: marker.text.startsWith(this.input) ? "block" : "none"
-			});
-			updateMarkerText(marker, this.input);
+		for (const marker of this.markers.values()) {
+            if (marker.hint.startsWith(this.input)) {
+                marker.el.setCssProps({ display: "block" });
+                updateMarkerText(marker, this.input);
+            } else {
+                marker.el.setCssProps({ display: "none" });
+            }
 		}
 	}
 
 	destroyMarkers() {
 		// Remove parent container
-		this.containerEl.parentNode?.removeChild(this.containerEl);
+        this.app.workspace.containerEl.removeChild(this.containerEl);
 
 		// Delete markers
-		this.markers = [];
+		this.markers = new Map();
 	}
 
 	async loadSettings() {
